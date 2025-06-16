@@ -69,10 +69,18 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    """Load the malaria district data"""
+    """Download and load district malaria data from Google Drive."""
     try:
+        # Google Drive file ID for district_malaria_2.geojson
+        file_id = "1lYJZtprcTEgycSFzfCHv1U7p45wFzGLg"
+        url = f"https://drive.google.com/uc?id={file_id}"
+        output = "district_malaria_2.geojson"
+
+        st.info("Downloading district_malaria_2.geojson from Google Drive...")
+        gdown.download(url, output, quiet=False)
+
         # Load the GeoJSON file
-        district_data = gpd.read_file('district_malaria_2.geojson')
+        district_data = gpd.read_file(output)
         
         # Ensure numeric columns are properly typed
         district_data['all cases'] = pd.to_numeric(district_data['all cases'], errors='coerce')
