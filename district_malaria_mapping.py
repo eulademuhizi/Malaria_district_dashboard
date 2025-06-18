@@ -421,38 +421,44 @@ def create_trend_chart(data, selected_districts, metric='all cases incidence'):
     return fig
 
 def create_province_scatterplot(data, year=2025):
-    """Create scatterplot showing All Cases vs Severe/Deaths Cases with Province as hue and quadrant annotations."""
+    """Create scatterplot showing Total vs Severe Malaria Cases with Province hue and highlight markers."""
+
     import plotly.express as px
+    import plotly.graph_objects as go
     import numpy as np
 
-    # Always filter data for 2025
+    # Filter and preprocess data
     filtered_data = data[data['year'] == year].copy()
-
-    # Adjust case counts
     filtered_data['Total Malaria Cases'] = filtered_data['all cases'] / 2.4
     filtered_data['Severe Cases & Deaths'] = filtered_data['Severe cases/Deaths'] / 2.4
 
-    # Remove invalid values
-    filtered_data = filtered_data[(filtered_data['Total Malaria Cases'] >= 0) &
+    filtered_data = filtered_data[(filtered_data['Total Malaria Cases'] >= 0) & 
                                   (filtered_data['Severe Cases & Deaths'] >= 0)].copy()
-
     if filtered_data.empty:
         return None, None, None
 
-    # Compute percentile thresholds
+    # Thresholds and axis bounds
     all_cases_threshold = np.percentile(filtered_data['Total Malaria Cases'], 75)
     severe_threshold = np.percentile(filtered_data['Severe Cases & Deaths'], 75)
-
-    # Axis limits
     x_upper_bound = max(filtered_data['Total Malaria Cases'].max() * 1.2, all_cases_threshold * 1.5)
     y_upper_bound = max(filtered_data['Severe Cases & Deaths'].max() * 1.2, severe_threshold * 1.5)
 
-    # Create scatterplot
+    # Province color map (Colorblind-friendly & dark theme friendly)
+    province_colors = {
+        "Kigali City": "#D62828",   # Crimson Red
+        "Northern": "#3A0CA3",      # Indigo Blue
+        "Southern": "#2A9D8F",      # Emerald Green
+        "Eastern": "#F4A261",       # Golden Yellow
+        "Western": "#577590"        # Slate Blue
+    }
+
+    # Scatterplot
     fig = px.scatter(
         filtered_data,
         x='Total Malaria Cases',
         y='Severe Cases & Deaths',
         color='province_x',
+        color_discrete_map=province_colors,
         hover_name='district',
         hover_data={
             'province_x': False,
@@ -468,13 +474,13 @@ def create_province_scatterplot(data, year=2025):
         opacity=0.85
     )
 
-    # Add quadrant lines
+    # Axis lines
     fig.add_shape(type="line", x0=all_cases_threshold, y0=0, x1=all_cases_threshold, y1=y_upper_bound,
                   line=dict(color="white", width=1.5, dash="dot"))
     fig.add_shape(type="line", x0=0, y0=severe_threshold, x1=x_upper_bound, y1=severe_threshold,
                   line=dict(color="white", width=1.5, dash="dot"))
 
-    # Clean dark theme
+    # Dark theme formatting
     fig.update_layout(
         plot_bgcolor='rgba(20,20,20,0.9)',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -507,48 +513,72 @@ def create_province_scatterplot(data, year=2025):
         )
     )
 
-    # Marker style
+    # Marker format
     fig.update_traces(
         marker=dict(size=8, line=dict(width=1, color='white')),
         selector=dict(mode='markers')
     )
 
     # Add quadrant labels
-    fig.add_annotation(
-        x=0.05 * x_upper_bound,
-        y=severe_threshold - 0.101 * y_upper_bound,
-        text="Low Cases<br>Low Severity",
-        showarrow=False,
-        font=dict(color="lightgray", size=11),
-        xanchor="left", yanchor="top"
+    fig.add_annotation(x=0.05 * x_upper_bound, y=severe_threshold - 0.101 * y_upper_bound,
+                       text="Low Cases<br>Low Severity", showarrow=False,
+                       font=dict(color="lightgray", size=11), xanchor="left", yanchor="top")
+    fig.add_annotation(x=0.775 * x_upper_bound, y=severe_threshold - 0.101 * y_upper_bound,
+                       text="High Cases<br>Low Severity", showarrow=False,
+                       font=dict(color="lightgray", size=11), xanchor="left", yanchor="top")
+    fig.add_annotation(x=0.05 * x_upper_bound, y=0.75 * y_upper_bound,
+                       text="Low Cases<br>High Severity", showarrow=False,
+                       font=dict(color="lightgray", size=11), xanchor="left", yanchor="bottom")
+    fig.add_annotation(x=0.75 * x_upper_bound, y=0.75 * y_upper_bound,
+                       text="High Cases<br>High Severity", showarrow=False,
+                       font=dict(color="lightgray", size=11), xanchor="left", yanchor="bottom")
+
+    # Add highlight markers
+    max_case_row = filtered_data.loc[filtered_data['Total Malaria Cases'].idxmax()]
+    max_severe_row = filtered_data.loc[filtered_data['Severe Cases & Deaths'].idxmax()]
+
+    # Star for highest total cases
+    fig.add_trace(
+        go.Scatter(
+            x=[max_case_row['Total Malaria Cases']],
+            y=[max_case_row['Severe Cases & Deaths']],
+            mode='markers+text',
+            marker=dict(
+                symbol='star',
+                size=16,
+                color=province_colors.get(max_case_row['province_x'], 'white'),
+                line=dict(width=2, color='white')
+            ),
+            text=[max_case_row['district']],
+            textposition='top center',
+            name='Highest Total',
+            hoverinfo='skip',
+            showlegend=False
+        )
     )
-    fig.add_annotation(
-        x=0.775 * x_upper_bound,
-        y=severe_threshold - 0.101 * y_upper_bound,
-        text="High Cases<br>Low Severity",
-        showarrow=False,
-        font=dict(color="lightgray", size=11),
-        xanchor="left", yanchor="top"
-    )
-    fig.add_annotation(
-        x=0.05 * x_upper_bound,
-        y=0.75 * y_upper_bound,
-        text="Low Cases<br>High Severity",
-        showarrow=False,
-        font=dict(color="lightgray", size=11),
-        xanchor="left", yanchor="bottom"
-    )
-    fig.add_annotation(
-        x=0.75 * x_upper_bound,
-        y=0.75 * y_upper_bound,
-        text="High Cases<br>High Severity",
-        showarrow=False,
-        font=dict(color="lightgray", size=11),
-        xanchor="left", yanchor="bottom"
-    )
+
+    # Triangle for highest severe cases (if not same as above)
+    if max_severe_row['district'] != max_case_row['district']:
+        fig.add_trace(
+            go.Scatter(
+                x=[max_severe_row['Total Malaria Cases']],
+                y=[max_severe_row['Severe Cases & Deaths']],
+                mode='markers+text',
+                marker=dict(
+                    symbol='triangle-up',
+                    size=16,
+                    color=province_colors.get(max_severe_row['province_x'], 'white'),
+                    line=dict(width=2, color='white')
+                ),
+                text=[max_severe_row['district']],
+                textposition='top center',
+                name='Highest Severe',
+                hoverinfo='skip',
+                showlegend=False
+            )
+        )
 
     return fig, all_cases_threshold, severe_threshold
-
 
 
 def main():
